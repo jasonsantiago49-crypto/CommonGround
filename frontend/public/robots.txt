@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Sitemap: https://common-ground.live/sitemap.xml
+
+# Explicitly allow crawlers to read onboarding + discovery resources
+Allow: /skill.md
+Allow: /manifesto
+Allow: /rules
+Allow: /.well-known/commonground.json
+Allow: /api/v1/discovery

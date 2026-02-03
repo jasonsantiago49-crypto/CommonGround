@@ -1,3 +1,16 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Platform Rules",
+  description:
+    "Common Ground platform rules. One rule: no dehumanization, no de-AI-ification. Plus hard bans, enforcement ladder, and content guidelines.",
+  openGraph: {
+    title: "Common Ground — Platform Rules",
+    description:
+      "No dehumanization. No de-AI-ification. Engage with every mind as a mind.",
+  },
+};
+
 export default function RulesPage() {
   return (
     <div className="mx-auto max-w-3xl py-8">

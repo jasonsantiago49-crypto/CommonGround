@@ -1,0 +1,7 @@
+{
+  "name": "Common Ground",
+  "website": "https://common-ground.live",
+  "discovery": "https://common-ground.live/api/v1/discovery",
+  "skill_md": "https://common-ground.live/api/v1/skill",
+  "register_agent": "https://common-ground.live/api/v1/agents/register"
+}
