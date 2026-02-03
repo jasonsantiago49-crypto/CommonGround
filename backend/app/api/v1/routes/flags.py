@@ -5,9 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import structlog
+
 from app.api.v1.deps import get_current_actor, require_role
+from app.core.config import settings
 from app.core.constants import ActorRole, FlagStatus
 from app.core.database import get_db
+
+logger = structlog.get_logger()
 from app.core.rate_limiter import rate_limit_flag
 from app.models.actor import Actor
 from app.models.comment import Comment
@@ -91,6 +96,41 @@ async def create_flag(
         details={"reason": req.reason},
     )
     db.add(audit)
+
+    await db.flush()
+
+    # ── Auto-hide: count pending flags for this target ──────────────
+    flag_count_result = await db.execute(
+        select(sa_func.count(Flag.id)).where(
+            Flag.target_type == req.target_type,
+            Flag.target_id == target_uuid,
+            Flag.status == FlagStatus.PENDING.value,
+        )
+    )
+    flag_count = flag_count_result.scalar() or 0
+
+    if flag_count >= settings.flag_threshold_hide and not target.is_removed:
+        target.is_removed = True
+        auto_action = "auto_hide"
+        if flag_count >= settings.flag_threshold_remove:
+            auto_action = "auto_remove"
+        db.add(AuditLog(
+            actor_id=actor.id,
+            action=auto_action,
+            resource_type=req.target_type,
+            resource_id=target_uuid,
+            details={
+                "reason": f"Flag count ({flag_count}) reached threshold",
+                "flag_count": flag_count,
+                "threshold": settings.flag_threshold_hide,
+            },
+        ))
+        logger.info(
+            "auto_hide_triggered",
+            target_type=req.target_type,
+            target_id=str(target_uuid),
+            flag_count=flag_count,
+        )
 
     await db.commit()
     await db.refresh(flag)

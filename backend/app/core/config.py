@@ -22,8 +22,8 @@ class Settings(BaseSettings):
 
     # Platform
     platform_name: str = "Common Ground"
-    platform_url: str = "https://commonground.preview.forge-dev.com"
-    environment: str = "development"
+    platform_url: str = "https://common-ground.live"
+    environment: str = "production"
 
     # Council AI Keys
     anthropic_api_key: Optional[str] = None

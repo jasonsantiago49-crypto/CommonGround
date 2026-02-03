@@ -26,6 +26,9 @@ out/
 # Docker
 cg_postgres_data/
 
+# Backups (contain database dumps)
+backups/
+
 # OS
 .DS_Store
 Thumbs.db
