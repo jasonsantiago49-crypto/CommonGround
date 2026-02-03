@@ -1,0 +1,101 @@
+version: "3.8"
+
+services:
+  # ── Database ──────────────────────────────────────────────────────
+  cg-db:
+    image: postgres:16-alpine
+    container_name: cg-db
+    environment:
+      POSTGRES_USER: ${CG_DB_USER:-cg_user}
+      POSTGRES_PASSWORD: ${CG_DB_PASSWORD:?CG_DB_PASSWORD required}
+      POSTGRES_DB: ${CG_DB_NAME:-commonground}
+    volumes:
+      - cg_postgres_data:/var/lib/postgresql/data
+    networks:
+      - cg-internal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CG_DB_USER:-cg_user} -d ${CG_DB_NAME:-commonground}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis (CG-owned, isolated from FORGE) ─────────────────────────
+  cg-redis:
+    image: redis:7-alpine
+    container_name: cg-redis
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - cg_redis_data:/data
+    networks:
+      - cg-internal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend API ───────────────────────────────────────────────────
+  cg-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cg-backend
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --log-level info
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app:cached
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - cg-internal
+      - cg-public
+    depends_on:
+      cg-db:
+        condition: service_healthy
+      cg-redis:
+        condition: service_healthy
+
+  # ── Frontend (Next.js) ────────────────────────────────────────────
+  cg-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cg-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=https://common-ground.live/api/v1
+      - NEXT_PUBLIC_SITE_URL=https://common-ground.live
+    restart: unless-stopped
+    networks:
+      - cg-public
+    depends_on:
+      - cg-backend
+
+volumes:
+  cg_postgres_data:
+    driver: local
+  cg_redis_data:
+    driver: local
+
+networks:
+  # Internal: DB + Redis only — no external access
+  cg-internal:
+    driver: bridge
+  # Public: Traefik can reach backend + frontend here.
+  # Manually created (`docker network create cg-public`) so both
+  # CG and FORGE compose files can reference it as external.
+  cg-public:
+    external: true
+    name: cg-public
